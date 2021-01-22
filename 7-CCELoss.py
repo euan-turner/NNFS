@@ -3,7 +3,7 @@ import numpy as np
 ##Example output - probabilities for 3 samples
 softmax_outputs = np.array([[0.7,0.1,0.2],[0.1,0.5,0.4],[0.02,0.9,0.08]])
 ##Ground truth - targets -> targeting 0th, 1st and 1st indices of outputs
-class_targets = [0,1,1]
+class_targets = np.array([0,1,1])
 
 neg_log = -np.log(softmax_outputs[range(len(softmax_outputs)), class_targets])
 avg_loss = np.mean(neg_log)
@@ -39,9 +39,13 @@ class Loss_CategoricalCrossEntropy(Loss):
 
         ##Deal with categorical labels or one hot labels
         if len(y_true.shape) == 1:
-            correct_confs = y_pred_clipped[range(num_samples,y_true)]
+            correct_confs = y_pred_clipped[range(num_samples),y_true]
         elif len(y_true.shape) == 2:
             correct_confs = np.sum(y_pred_clipped*y_true,axis=1)
         
-        neg_log = -np.logs(correct_confs)
+        neg_log = -np.log(correct_confs)
         return neg_log
+
+loss_func = Loss_CategoricalCrossEntropy()
+loss = loss_func.calculate(softmax_outputs,class_targets)
+print(loss)
