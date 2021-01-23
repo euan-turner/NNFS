@@ -65,36 +65,38 @@ class CCE_Loss(Loss):
         neg_log = -np.log(confs)
         return neg_log
 
-##Create dataset
-X,y = spiral_data(samples=100,classes=3)
+def show():
+    ##Create dataset
+    X,y = spiral_data(samples=100,classes=3)
 
-##Dense layer with 2 inputs and 3 outputs
-dense1 = Dense_Layer(2,3)
-##ReLU activation to be used with first dense layer
-activation1 = Act_ReLU()
+    ##Dense layer with 2 inputs and 3 outputs
+    dense1 = Dense_Layer(2,3)
+    ##ReLU activation to be used with first dense layer
+    activation1 = Act_ReLU()
 
-##Dense layer with 3 inputs and 3 outputs
-dense2 = Dense_Layer(3,3)
-##Softmax activation to be used with second dense layer
-activation2 = Act_Softmax()
+    ##Dense layer with 3 inputs and 3 outputs
+    dense2 = Dense_Layer(3,3)
+    ##Softmax activation to be used with second dense layer
+    activation2 = Act_Softmax()
 
-##Loss function
-loss_func = CCE_Loss()
+    ##Loss function
+    loss_func = CCE_Loss()
 
-##Forward pass through first layer
-dense1.forward(X)
-##Pass through ReLU
-activation1.forward(dense1.output)
+    ##Forward pass through first layer
+    dense1.forward(X)
+    ##Pass through ReLU
+    activation1.forward(dense1.output)
 
-##Forward pass through second layer
-dense2.forward(activation1.output)
-##Pass through Softmax
-activation2.forward(dense2.output)
+    ##Forward pass through second layer
+    dense2.forward(activation1.output)
+    ##Pass through Softmax
+    activation2.forward(dense2.output)
 
-##Examine output for first 5 samples
-print(activation2.output[:5])
+    ##Examine output for first 5 samples
+    print(activation2.output[:5])
 
-##Calculate loss of network
-loss = loss_func.calculate(activation2.output,y)
+    ##Calculate loss of network
+    loss = loss_func.calculate(activation2.output,y)
 
-print("Loss:",loss)
+    print("Loss:",loss)
+    
