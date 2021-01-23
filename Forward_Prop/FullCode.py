@@ -99,4 +99,13 @@ def show():
     loss = loss_func.calculate(activation2.output,y)
 
     print("Loss:",loss)
-    
+     
+    ##Accuracy calculations
+    predictions = np.argmax(activation2.output, axis=1)
+    if len(y.shape) == 2:
+        y = np.argmax(y,axis=2)
+    accuracy = np.mean(predictions == y)
+
+    print("Accuracy:", accuracy)
+
+show()
