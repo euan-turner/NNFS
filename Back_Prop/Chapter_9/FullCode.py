@@ -1,4 +1,8 @@
 import numpy as np
+import nnfs
+from nnfs.datasets import spiral_data
+
+nnfs.init()
 
 class Dense_Layer():
 
@@ -159,24 +163,53 @@ class Act_Softmax_CCE_Loss():
         ##Normalize
         self.dInputs = self.dInputs/samples
 
+def main():
+    ##Create dataset
+    X,y = spiral_data(samples=100,classes=3)
 
-##Testing combined and separate softmax and cce loss
-softmax_outputs = np.array([[0.7,0.1,0.2],
-                            [0.1,0.5,0.4],
-                            [0.02,0.9,0.08]])
+    ##Dense layer with 2 inputs and 3 outputs
+    dense1 = Dense_Layer(2,3)
+    ##ReLU activation to be used with first dense layer
+    activation1 = Act_ReLU()
 
-class_targets = np.array([0,1,1])
+    ##Dense layer with 3 inputs and 3 outputs
+    dense2 = Dense_Layer(3,3)
 
-softmax_loss = Act_Softmax_CCE_Loss()
-softmax_loss.backward(softmax_outputs, class_targets)
-dValues1 = softmax_loss.dInputs
+    ##Softmax/Loss functions
+    act_loss = Act_Softmax_CCE_Loss()
 
-act = Act_Softmax()
-act.output = softmax_outputs
-loss = CCE_Loss()
-loss.backward(softmax_outputs, class_targets)
-act.backward(loss.dInputs)
-dValues2 = act.dInputs
+    ##Forward passes
+    dense1.forward(X)
+    activation1.forward(dense1.output)
 
-print("Gradients from combined: \n",dValues1)
-print("Gradients from separate: \n", dValues2)
+    dense2.forward(activation1.output)
+    
+    loss = act_loss.forward(dense2.output, y)
+
+
+    print(act_loss.output[:5])
+    print("Loss: ", loss)
+
+    ##Calculate accuracy of predictions form output of act_loss
+    preds = np.argmax(act_loss.output, axis = 1)
+    if len(y.shape) == 2:
+        ##Convert from one-hot to index labels
+        y = np.argmax(y, axis=1)
+    
+    acc = np.mean(preds == y)
+    print("Accuracy: ", acc)
+
+    ##Backward passes
+    act_loss.backward(act_loss.output, y)
+    dense2.backward(act_loss.dInputs)
+    activation1.backward(dense2.dInputs)
+    dense1.backward(activation1.dInputs)
+
+    ##Gradients
+    print(dense1.dWeights)
+    print(dense1.dBiases)
+
+    print(dense2.dWeights)
+    print(dense2.dBiases)
+
+main()
