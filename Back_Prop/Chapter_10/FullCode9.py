@@ -204,7 +204,6 @@ def main():
     dense2.backward(act_loss.dInputs)
     activation1.backward(dense2.dInputs)
     dense1.backward(activation1.dInputs)
-
     ##Gradients
     print(dense1.dWeights)
     print(dense1.dBiases)
