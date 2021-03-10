@@ -166,15 +166,16 @@ class Act_Softmax_CCE_Loss():
 ##Stochastic Gradient Descent Optimizer
 class SGD_Optimizer():
 
-    def __init__(self, learning_rate = 1.0, decay = 0):
+    def __init__(self, learning_rate = 1.0, decay = 0.0, momentum = 0.0):
         self.learning_rate = learning_rate
         self.decay = decay
         self.current_learning_rate = learning_rate
         self.iterations = 0
+        self.momentum = momentum
     
     ##Call before updating params, sets the learning rate for current epoch
     def pre_update(self):
-        if self.decay != 0:
+        if self.decay:
             ##Decaying learning rate over epochs should help to find deeper minima
             ##As the model can escape lower minima at the start, and then focus on 
             ##Deeper minima at the end
@@ -182,10 +183,28 @@ class SGD_Optimizer():
                 self.learning_rate * (1 / (1 + self.decay * self.iterations))
     
     def update_parameters(self, dense_layer):
-        ##Apply gradients to biases, in proportion to the learning rate
-        ##Attempting to find local minimum in loss function
-        dense_layer.weights += -self.learning_rate * dense_layer.dWeights
-        dense_layer.biases += - self.learning_rate * dense_layer.dBiases
+        ##If using momentum
+        if self.momentum:
+            
+            ##Check if layers have momentum
+            if not hasattr(dense_layer, 'weight_momentums'):
+                dense_layer.weight_momentums = np.zeros_like(dense_layer.weights)
+                dense_layer.bias_momentums = np.zeros_like(dense_layer.biases)
+            
+            ##Build weight updates with momentum
+            weight_updates = self.momentum * dense_layer.weight_momentums - \
+                            self.current_learning_rate * dense_layer.dWeights
+            dense_layer.weight_momentums = weight_updates
+            ##Build bias updates with momentum
+            bias_updates = self.momentum * dense_layer.bias_momentums - \
+                            self.current_learning_rate * dense_layer.dBiases
+            dense_layer.bias_momentums = bias_updates
+        else:
+            weight_updates = -self.current_learning_rate * dense_layer.dWeights
+            bias_updates = - self.current_learning_rate * dense_layer.dBiases
+
+        dense_layer.weights += weight_updates
+        dense_layer.biases += bias_updates
 
     def post_update(self):
         self.iterations += 1
@@ -205,7 +224,7 @@ dense2 = Dense_Layer(64,3)
 act_loss = Act_Softmax_CCE_Loss()
 
 ##Optimizer
-sgd_optimizer = SGD_Optimizer(decay = 1e-3)
+sgd_optimizer = SGD_Optimizer(decay = 1e-3, momentum = 0.9)
 
 for epoch in range(10001):
     ##Forward passes
