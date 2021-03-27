@@ -163,15 +163,18 @@ class Act_Softmax_CCE_Loss():
         ##Normalize
         self.dInputs = self.dInputs/samples
 
-##Adaptive Gradient Optimizer
-class AdaGrad_Optimizer():
+##Root Mean Square Propagation Optimizer
+class RMSProp_Optimizer():
 
-    def __init__(self, learning_rate = 1.0, decay = 0.0, epsilon = 1e-7):
+    ##Initial learning rate is much lower than in SGD or AdaGrad
+    ##rho is the decay rate of the cache 
+    def __init__(self, learning_rate = 0.001, decay = 0.0, epsilon = 1e-7, rho = 0.9):
         self.learning_rate = learning_rate
         self.decay = decay
         self.current_learning_rate = learning_rate
         self.iterations = 0
         self.epsilon = epsilon
+        self.rho = rho
     
     ##Call before updating params, sets the learning rate for current epoch
     def pre_update(self):
@@ -184,21 +187,24 @@ class AdaGrad_Optimizer():
     
     def update_parameters(self, dense_layer):
         
-        ##If layer does not contain cache, initialise with 0s
+        ##If layer does not contain cace, initialise with 0s
         if not hasattr(dense_layer, 'weight_cache'):
             dense_layer.weight_cache = np.zeros_like(dense_layer.weights)
             dense_layer.bias_cache = np.zeros_like(dense_layer.biases)
 
-        ##Update cache with the square of current gradients - lose negatives
-        dense_layer.weight_cache += dense_layer.dWeights**2
-        dense_layer.bias_cache += dense_layer.dBiases**2
-
+        ##Update cache with square of current gradients
+        ##Cache decay rate x cache + (1 - cache decay rate) x gradient^2
+        dense_layer.weight_cache = self.rho * dense_layer.weight_cache + \
+                                   (1 - self.rho) * dense_layer.dWeights**2
+        dense_layer.bias_cache = self.rho * dense_layer.bias_cache + \
+                                   (1 - self.rho) * dense_layer.dBiases**2
+        
         ##Update weights and biases with normalised changes
         ##(Learning rate x Gradient )/(square root of cache + epsilon)
-        dense_layer.weights += - self.current_learning_rate * dense_layer.dWeights / \
-                                (np.sqrt(dense_layer.weight_cache) + self.epsilon)
-        dense_layer.biases += - self.current_learning_rate * dense_layer.dBiases / \
-                                (np.sqrt(dense_layer.bias_cache) + self.epsilon)
+        dense_layer.weights += -self.current_learning_rate * dense_layer.dWeights / \
+                               (np.sqrt(dense_layer.weight_cache) + self.epsilon)
+        dense_layer.biases += -self.current_learning_rate * dense_layer.dBiases / \
+                               (np.sqrt(dense_layer.bias_cache) + self.epsilon)
 
     def post_update(self):
         self.iterations += 1
@@ -218,7 +224,7 @@ dense2 = Dense_Layer(64,3)
 act_loss = Act_Softmax_CCE_Loss()
 
 ##Optimizer
-optimizer = AdaGrad_Optimizer(decay = 1e-4)
+optimizer = RMSProp_Optimizer(learning_rate = 0.02, decay = 1e-5, rho = 0.999)
 
 for epoch in range(10001):
     ##Forward passes
