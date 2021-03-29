@@ -9,6 +9,7 @@ class Dense_Layer():
     def __init__(self,n_inputs : int, n_neurons : int,
         weight_reg_l1 : int = 0, weight_reg_l2 : int = 0,
         bias_reg_l1 : int = 0, bias_reg_l2 : int = 0):
+
         self.weights = 0.01 * np.random.randn(n_inputs,n_neurons)
         self.biases = np.zeros((1,n_neurons))
 
@@ -17,6 +18,8 @@ class Dense_Layer():
         self.weight_reg_l2 = weight_reg_l2
         self.bias_reg_l1 = bias_reg_l1
         self.bias_reg_l2 = bias_reg_l2
+        ##Often, only l2 regularisation will be used, as l1 can affect small
+        ##values too much
 
     def forward(self, inputs : np.ndarray) -> np.ndarray:
         ##Forward propagate value through layer
@@ -30,6 +33,33 @@ class Dense_Layer():
         self.dBiases = np.sum(dValues, axis=0, keepdims=True)
         ##Gradients on inputs values
         self.dInputs = np.dot(dValues, self.weights.T)
+
+        ##Gradients on regularisation
+        ##L1 on weights
+        if self.weight_reg_l1 > 0:
+            ##Partial derivative for each weight:
+            ##lambda x (-1 < 0, 1 > 0)
+            dWL1 = np.ones_like(self.weights)
+            dWL1[self.weights < 0] = -1
+            self.dWeights += self.weight_reg_l1 * dWL1
+        
+        ##L2 on weights
+        if self.weight_reg_l2 > 0:
+            ##Partial derivative for each weight:
+            ##2 x lambda x weight
+            dWL2 = 2 * self.weight_reg_l2 * self.weights
+            self.dWeights += dWL2
+        
+        ##L1 on biases
+        if self.bias_reg_l1 > 0:
+            dBL1 = np.ones_likes(self.biases)
+            dBL1[self.biases < 0] = -1
+            self.dBiases += self.bias_reg_l1 * dBL1
+        
+        ##L2 on biases
+        if self.bias_reg_l2 > 0:
+            dBL2 = 2 * self.bias_reg_l2 * self.biases
+            self.dBiases += dBL2
 
 
 class Act_ReLU():

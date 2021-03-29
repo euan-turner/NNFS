@@ -9,7 +9,7 @@ nnfs.init()
 X, y = spiral_data(samples = 100, classes = 3)
 
 ##Dense layer - 2 inputs, 64 outputs
-dense1 = Dense_Layer(2,64)
+dense1 = Dense_Layer(2,64, weight_reg_l2 = 5e-4, bias_reg_l2 = 5e-4)
 ##ReLU activation to be used with first dense layer
 activation1 = Act_ReLU()
 
@@ -23,7 +23,7 @@ act_loss = Act_Softmax_CCE_Loss()
 ##optimizer = SGD_Optimizer(decay = 1e-3, momentum = 0.9)
 ##optimizer = AdaGrad_Optimizer(decay = 1e-4)
 ##optimizer = RMSProp_Optimizer(decay = 1e-4)
-optimizer = Adam_Optimizer(learning_rate = 0.05, decay = 5e-7)
+optimizer = Adam_Optimizer(learning_rate = 0.02, decay = 5e-7)
 
 for epoch in range(10001):
     ##Forward passes
@@ -32,11 +32,11 @@ for epoch in range(10001):
 
     dense2.forward(activation1.output)
 
-    loss = act_loss.forward(dense2.output, y)
+    data_loss = act_loss.forward(dense2.output, y)
 
     ##Calculate regularisation penalty
     reg_loss = act_loss.cce_loss.regularisation_loss(dense1) + act_loss.cce_loss.regularisation_loss(dense2)
-    loss += reg_loss
+    loss = data_loss + reg_loss
 
     ##Calculate accuracy of predictions form output of act_loss
     preds = np.argmax(act_loss.output, axis = 1)
@@ -50,7 +50,9 @@ for epoch in range(10001):
         print(f'epoch: {epoch}, ' +
               f'acc: {acc:.3f}, ' +
               f'loss: {loss:.3f}, ' +
-              f'lrate: {optimizer.current_learning_rate}')
+              f'data_loss: {data_loss:.3f}, ' +
+              f'reg_loss: {reg_loss:.3f}, ' +
+              f'lrate: {optimizer.current_learning_rate:.10f}')
 
     ##Backward passes
     act_loss.backward(act_loss.output, y)
