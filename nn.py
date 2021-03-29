@@ -163,6 +163,142 @@ class Act_Softmax_CCE_Loss():
         ##Normalize
         self.dInputs = self.dInputs/samples
 
+
+##Stochastic Gradient Descent Optimizer
+class SGD_Optimizer():
+
+    def __init__(self, learning_rate = 1.0, decay = 0.0, momentum = 0.0):
+        self.learning_rate = learning_rate
+        self.decay = decay
+        self.current_learning_rate = learning_rate
+        self.iterations = 0
+        self.momentum = momentum
+
+    ##Call before updating params, sets the learning rate for current epoch
+    def pre_update(self):
+        if self.decay:
+            ##Decaying learning rate over epochs should help to find deeper minima
+            ##As the model can escape lower minima at the start, and then focus on 
+            ##Deeper minima at the end
+            self.current_learning_rate = \
+                self.learning_rate * (1 / (1 + self.decay * self.iterations))
+
+    def update_parameters(self, dense_layer):
+        ##If using momentum
+        if self.momentum:
+
+            ##Check if layers have momentum
+            if not hasattr(dense_layer, 'weight_momentums'):
+                dense_layer.weight_momentums = np.zeros_like(dense_layer.weights)
+                dense_layer.bias_momentums = np.zeros_like(dense_layer.biases)
+
+            ##Build weight updates with momentum
+            weight_updates = self.momentum * dense_layer.weight_momentums - \
+                            self.current_learning_rate * dense_layer.dWeights
+            dense_layer.weight_momentums = weight_updates
+            ##Build bias updates with momentum
+            bias_updates = self.momentum * dense_layer.bias_momentums - \
+                            self.current_learning_rate * dense_layer.dBiases
+            dense_layer.bias_momentums = bias_updates
+        else:
+            weight_updates = -self.current_learning_rate * dense_layer.dWeights
+            bias_updates = - self.current_learning_rate * dense_layer.dBiases
+
+        dense_layer.weights += weight_updates
+        dense_layer.biases += bias_updates
+
+    def post_update(self):
+        self.iterations += 1
+
+
+##Adaptive Gradient Optimizer
+class AdaGrad_Optimizer():
+
+    def __init__(self, learning_rate = 1.0, decay = 0.0, epsilon = 1e-7):
+        self.learning_rate = learning_rate
+        self.decay = decay
+        self.current_learning_rate = learning_rate
+        self.iterations = 0
+        self.epsilon = epsilon
+
+    ##Call before updating params, sets the learning rate for current epoch
+    def pre_update(self):
+        if self.decay:
+            ##Decaying learning rate over epochs should help to find deeper minima
+            ##As the model can escape lower minima at the start, and then focus on 
+            ##Deeper minima at the end
+            self.current_learning_rate = \
+                self.learning_rate * (1 / (1 + self.decay * self.iterations))
+
+    def update_parameters(self, dense_layer):
+
+        ##If layer does not contain array cache, initialise with 0s
+        if not hasattr(dense_layer, 'weight_cache'):
+            dense_layer.weight_cache = np.zeros_like(dense_layer.weights)
+            dense_layer.bias_cache = np.zeros_like(dense_layer.biases)
+
+        ##Update cache with the square of current gradients - lose negatives
+        dense_layer.weight_cache += dense_layer.dWeights**2
+        dense_layer.bias_cache += dense_layer.dBiases**2
+
+        ##Update weights and biases
+        ##(Learning rate x Gradient )/(square root of cache + epsilon)
+        dense_layer.weights += - self.current_learning_rate * dense_layer.dWeights / \
+                                (np.sqrt(dense_layer.weight_cache) + self.epsilon)
+        dense_layer.biases += - self.current_learning_rate * dense_layer.dBiases / \
+                                (np.sqrt(dense_layer.bias_cache) + self.epsilon)
+
+    def post_update(self):
+        self.iterations += 1
+
+
+##Root Mean Square Propagation Optimizer
+class RMSProp_Optimizer():
+
+    ##Initial learning rate is much lower than in SGD or AdaGrad
+    ##rho is the decay rate of the cache 
+    def __init__(self, learning_rate = 0.001, decay = 0.0, epsilon = 1e-7, rho = 0.9):
+        self.learning_rate = learning_rate
+        self.decay = decay
+        self.current_learning_rate = learning_rate
+        self.iterations = 0
+        self.epsilon = epsilon
+        self.rho = rho
+
+    ##Call before updating params, sets the learning rate for current epoch
+    def pre_update(self):
+        if self.decay:
+            ##Decaying learning rate over epochs should help to find deeper minima
+            ##As the model can escape lower minima at the start, and then focus on 
+            ##Deeper minima at the end
+            self.current_learning_rate = \
+                self.learning_rate * (1 / (1 + self.decay * self.iterations))
+
+    def update_parameters(self, dense_layer):
+
+        ##If layer does not contain cace, initialise with 0s
+        if not hasattr(dense_layer, 'weight_cache'):
+            dense_layer.weight_cache = np.zeros_like(dense_layer.weights)
+            dense_layer.bias_cache = np.zeros_like(dense_layer.biases)
+
+        ##Update cache with square of current gradients
+        ##Cache decay rate x cache + (1 - cache decay rate) x gradient^2
+        dense_layer.weight_cache = self.rho * dense_layer.weight_cache + \
+                                   (1 - self.rho) * dense_layer.dWeights**2
+        dense_layer.bias_cache = self.rho * dense_layer.bias_cache + \
+                                   (1 - self.rho) * dense_layer.dBiases**2
+
+        ##Update weights and biases with normalised changes
+        ##(Learning rate x Gradient )/(square root of cache + epsilon)
+        dense_layer.weights += -self.current_learning_rate * dense_layer.dWeights / \
+                               (np.sqrt(dense_layer.weight_cache) + self.epsilon)
+        dense_layer.biases += -self.current_learning_rate * dense_layer.dBiases / \
+                               (np.sqrt(dense_layer.bias_cache) + self.epsilon)
+
+    def post_update(self):
+        self.iterations += 1
+
+
 ##Adaptive Momentum Optimizer
 ##Combines momentum from SGD with RMSProp
 class Adam_Optimizer():

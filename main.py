@@ -20,6 +20,9 @@ dense2 = Dense_Layer(64,3)
 act_loss = Act_Softmax_CCE_Loss()
 
 ##Optimizer
+##optimizer = SGD_Optimizer(decay = 1e-3, momentum = 0.9)
+##optimizer = AdaGrad_Optimizer(decay = 1e-4)
+##optimizer = RMSProp_Optimizer(decay = 1e-4)
 optimizer = Adam_Optimizer(learning_rate = 0.05, decay = 5e-7)
 
 for epoch in range(10001):
