@@ -6,7 +6,7 @@ from nn import *
 nnfs.init()
 
 ##Create dataset
-X, y = spiral_data(samples = 1000, classes = 3)
+X, y = spiral_data(samples = 100, classes = 3)
 
 ##Dense layer - 2 inputs, 64 outputs
 dense1 = Dense_Layer(2,64, weight_reg_l2 = 5e-4, bias_reg_l2 = 5e-4)
