@@ -34,6 +34,10 @@ for epoch in range(10001):
 
     loss = act_loss.forward(dense2.output, y)
 
+    ##Calculate regularisation penalty
+    reg_loss = act_loss.cce_loss.regularisation_loss(dense1) + act_loss.cce_loss.regularisation_loss(dense2)
+    loss += reg_loss
+
     ##Calculate accuracy of predictions form output of act_loss
     preds = np.argmax(act_loss.output, axis = 1)
     if len(y.shape) == 2:

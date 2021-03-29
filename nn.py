@@ -6,9 +6,17 @@ nnfs.init()
 
 class Dense_Layer():
 
-    def __init__(self,n_inputs : int, n_neurons : int):
+    def __init__(self,n_inputs : int, n_neurons : int,
+        weight_reg_l1 : int = 0, weight_reg_l2 : int = 0,
+        bias_reg_l1 : int = 0, bias_reg_l2 : int = 0):
         self.weights = 0.01 * np.random.randn(n_inputs,n_neurons)
         self.biases = np.zeros((1,n_neurons))
+
+        ##Set regularisation strength
+        self.weight_reg_l1 = weight_reg_l1
+        self.weight_reg_l2 = weight_reg_l2
+        self.bias_reg_l1 = bias_reg_l1
+        self.bias_reg_l2 = bias_reg_l2
 
     def forward(self, inputs : np.ndarray) -> np.ndarray:
         ##Forward propagate value through layer
@@ -38,10 +46,37 @@ class Act_ReLU():
 
 class Loss():
 
-    def calculate(self,output : np.ndarray, target : np.ndarray) -> int:
+    def calculate(self,output : np.ndarray, target : np.ndarray) -> float:
         sample_losses = self.forward(output,target)
         mean_loss = np.mean(sample_losses)
         return mean_loss
+
+    ##Regularisation loss calculation
+    ##Standard for all inheriting loss functions
+    def regularisation_loss(self, layer : Dense_Layer) -> float:
+        #0 by default
+        reg_loss = 0
+
+        ##L1 regularisation on weights
+        ##lambda x sum of absolute values of weights
+        if layer.weight_reg_l1 > 0:
+            reg_loss += layer.weight_reg_l1 * np.sum(np.abs(layer.weights))
+        
+        ##L2 regularisation on weights
+        ##lambda x sum of squares of weights
+        ##penalises large values more, and small values less
+        if layer.weight_reg_l2 > 0:
+            reg_loss += layer.weight_reg_l2 * np.sum(layer.weights * layer.weights)
+        
+        ##L1 regularisation on biases
+        if layer.bias_reg_l1 > 0:
+            reg_loss += layer.bias_reg_l1 * np.sum(np.abs(layer.biases))
+        
+        ##L2 regularisation on biases
+        if layer.bias_reg_l2 > 0:
+            reg_loss += layer.bias_reg_l2 * np.sum(layer.biases * layer.biases)
+        
+        return reg_loss
 
 
 class CCE_Loss(Loss):
@@ -167,7 +202,7 @@ class Act_Softmax_CCE_Loss():
 ##Stochastic Gradient Descent Optimizer
 class SGD_Optimizer():
 
-    def __init__(self, learning_rate = 1.0, decay = 0.0, momentum = 0.0):
+    def __init__(self, learning_rate : float = 1.0, decay : float = 0.0, momentum : float= 0.0):
         self.learning_rate = learning_rate
         self.decay = decay
         self.current_learning_rate = learning_rate
@@ -183,7 +218,7 @@ class SGD_Optimizer():
             self.current_learning_rate = \
                 self.learning_rate * (1 / (1 + self.decay * self.iterations))
 
-    def update_parameters(self, dense_layer):
+    def update_parameters(self, dense_layer : Dense_Layer):
         ##If using momentum
         if self.momentum:
 
@@ -214,7 +249,7 @@ class SGD_Optimizer():
 ##Adaptive Gradient Optimizer
 class AdaGrad_Optimizer():
 
-    def __init__(self, learning_rate = 1.0, decay = 0.0, epsilon = 1e-7):
+    def __init__(self, learning_rate : float = 1.0, decay : float = 0.0, epsilon : float = 1e-7):
         self.learning_rate = learning_rate
         self.decay = decay
         self.current_learning_rate = learning_rate
@@ -230,7 +265,7 @@ class AdaGrad_Optimizer():
             self.current_learning_rate = \
                 self.learning_rate * (1 / (1 + self.decay * self.iterations))
 
-    def update_parameters(self, dense_layer):
+    def update_parameters(self, dense_layer : Dense_Layer):
 
         ##If layer does not contain array cache, initialise with 0s
         if not hasattr(dense_layer, 'weight_cache'):
@@ -257,7 +292,9 @@ class RMSProp_Optimizer():
 
     ##Initial learning rate is much lower than in SGD or AdaGrad
     ##rho is the decay rate of the cache 
-    def __init__(self, learning_rate = 0.001, decay = 0.0, epsilon = 1e-7, rho = 0.9):
+    def __init__(self, learning_rate : float = 0.001, decay : float= 0.0, 
+        epsilon : float= 1e-7, rho : float= 0.9):
+
         self.learning_rate = learning_rate
         self.decay = decay
         self.current_learning_rate = learning_rate
@@ -274,7 +311,7 @@ class RMSProp_Optimizer():
             self.current_learning_rate = \
                 self.learning_rate * (1 / (1 + self.decay * self.iterations))
 
-    def update_parameters(self, dense_layer):
+    def update_parameters(self, dense_layer : Dense_Layer):
 
         ##If layer does not contain cace, initialise with 0s
         if not hasattr(dense_layer, 'weight_cache'):
@@ -305,7 +342,9 @@ class Adam_Optimizer():
 
     ##Initial learning rate is much lower than in SGD or AdaGrad
     ##rho is the decay rate of the cache 
-    def __init__(self, learning_rate = 0.001, decay = 0.0, epsilon = 1e-7, beta_1 = 0.9, beta_2 = 0.999):
+    def __init__(self, learning_rate : float = 0.001, decay : float = 0.0, 
+        epsilon : float = 1e-7, beta_1 : float = 0.9, beta_2 : float = 0.999):
+
         self.learning_rate = learning_rate
         self.decay = decay
         self.current_learning_rate = learning_rate
@@ -323,7 +362,7 @@ class Adam_Optimizer():
             self.current_learning_rate = \
                 self.learning_rate * (1 / (1 + self.decay * self.iterations))
     
-    def update_parameters(self, dense_layer):
+    def update_parameters(self, dense_layer : Dense_Layer):
         
         ##If layer does not contain cache, initialise with 0s
         if not hasattr(dense_layer, 'weight_cache'):
