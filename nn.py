@@ -1,4 +1,8 @@
 import numpy as np
+import nnfs
+from nnfs.datasets import spiral_data
+
+nnfs.init()
 
 class Dense_Layer():
 
@@ -159,24 +163,71 @@ class Act_Softmax_CCE_Loss():
         ##Normalize
         self.dInputs = self.dInputs/samples
 
+##Adaptive Momentum Optimizer
+##Combines momentum from SGD with RMSProp
+class Adam_Optimizer():
 
-##Testing combined and separate softmax and cce loss
-softmax_outputs = np.array([[0.7,0.1,0.2],
-                            [0.1,0.5,0.4],
-                            [0.02,0.9,0.08]])
+    ##Initial learning rate is much lower than in SGD or AdaGrad
+    ##rho is the decay rate of the cache 
+    def __init__(self, learning_rate = 0.001, decay = 0.0, epsilon = 1e-7, beta_1 = 0.9, beta_2 = 0.999):
+        self.learning_rate = learning_rate
+        self.decay = decay
+        self.current_learning_rate = learning_rate
+        self.iterations = 0
+        self.epsilon = epsilon
+        self.beta_1 = beta_1
+        self.beta_2 = beta_2 ##beta_2 is equivalent to rho in RMSProp
+    
+    ##Call before updating params, sets the learning rate for current epoch
+    def pre_update(self):
+        if self.decay:
+            ##Decaying learning rate over epochs should help to find deeper minima
+            ##As the model can escape lower minima at the start, and then focus on 
+            ##Deeper minima at the end
+            self.current_learning_rate = \
+                self.learning_rate * (1 / (1 + self.decay * self.iterations))
+    
+    def update_parameters(self, dense_layer):
+        
+        ##If layer does not contain cache, initialise with 0s
+        if not hasattr(dense_layer, 'weight_cache'):
+            dense_layer.weight_momentums = np.zeros_like(dense_layer.weights)
+            dense_layer.weight_cache = np.zeros_like(dense_layer.weights)
+            dense_layer.bias_momentums = np.zeros_like(dense_layer.biases)
+            dense_layer.bias_cache = np.zeros_like(dense_layer.biases)
 
-class_targets = np.array([0,1,1])
+        ##Update momentums with current gradients
+        dense_layer.weight_momentums = self.beta_1 * dense_layer.weight_momentums + \
+                                        (1 - self.beta_1) * dense_layer.dWeights
+        dense_layer.bias_momentums = self.beta_1 * dense_layer.bias_momentums + \
+                                        (1 - self.beta_1) * dense_layer.dBiases
 
-softmax_loss = Act_Softmax_CCE_Loss()
-softmax_loss.backward(softmax_outputs, class_targets)
-dValues1 = softmax_loss.dInputs
+        ##Get corrected momentums
+        ##Adjusts self.iterations as first pass will be at 0
+        weight_momentums_corrected = dense_layer.weight_momentums / \
+                                        (1 - self.beta_1 ** (self.iterations + 1))
+        bias_momentums_corrected = dense_layer.bias_momentums / \
+                                        (1 - self.beta_1 ** (self.iterations + 1))
+        
+        ##Update cache with squared gradients
+        dense_layer.weight_cache = self.beta_2 * dense_layer.weight_cache +\
+                                    (1 - self.beta_2) * dense_layer.dWeights**2
+        dense_layer.bias_cache = self.beta_2 * dense_layer.bias_cache + \
+                                    (1 - self.beta_2) * dense_layer.dBiases**2
+        
+        ##Get corrected cache
+        weight_cache_corrected = dense_layer.weight_cache / \
+                                    (1 - self.beta_2 ** (self.iterations + 1))
+        bias_cache_corrected = dense_layer.bias_cache / \
+                                    (1 - self.beta_2 ** (self.iterations + 1))
+        
+        ##Update weights and biases with normalised changes
+        ##(Learning rate x Corrected momentums)/(square root of  corrected cache + epsilon)
+        dense_layer.weights += -self.current_learning_rate * weight_momentums_corrected / \
+                                (np.sqrt(weight_cache_corrected) + self.epsilon)
+        dense_layer.biases += -self.current_learning_rate * bias_momentums_corrected / \
+                                (np.sqrt(bias_cache_corrected) + self.epsilon)
 
-act = Act_Softmax()
-act.output = softmax_outputs
-loss = CCE_Loss()
-loss.backward(softmax_outputs, class_targets)
-act.backward(loss.dInputs)
-dValues2 = act.dInputs
+    def post_update(self):
+        self.iterations += 1
 
-print("Gradients from combined: \n",dValues1)
-print("Gradients from separate: \n", dValues2)
