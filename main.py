@@ -6,7 +6,7 @@ from nn import *
 nnfs.init()
 
 ##Create dataset
-X, y = spiral_data(samples = 100, classes = 3)
+X, y = spiral_data(samples = 1000, classes = 3)
 
 ##Dense layer - 2 inputs, 64 outputs
 dense1 = Dense_Layer(2,64, weight_reg_l2 = 5e-4, bias_reg_l2 = 5e-4)
@@ -16,6 +16,9 @@ activation1 = Act_ReLU()
 ##Dense layer with 64 inputs and 3 outputs
 dense2 = Dense_Layer(64,3)
 
+##Dropout layer for dense1
+dropout1 = Dropout_Layer(rate = 0.1)
+
 ##Softmax/Loss functions
 act_loss = Act_Softmax_CCE_Loss()
 
@@ -23,14 +26,15 @@ act_loss = Act_Softmax_CCE_Loss()
 ##optimizer = SGD_Optimizer(decay = 1e-3, momentum = 0.9)
 ##optimizer = AdaGrad_Optimizer(decay = 1e-4)
 ##optimizer = RMSProp_Optimizer(decay = 1e-4)
-optimizer = Adam_Optimizer(learning_rate = 0.02, decay = 5e-7)
+optimizer = Adam_Optimizer(learning_rate = 0.05, decay = 5e-5)
 
 for epoch in range(10001):
     ##Forward passes
     dense1.forward(X)
     activation1.forward(dense1.output)
 
-    dense2.forward(activation1.output)
+    dropout1.forward(activation1.output)
+    dense2.forward(dropout1.output)
 
     data_loss = act_loss.forward(dense2.output, y)
 
@@ -57,7 +61,8 @@ for epoch in range(10001):
     ##Backward passes
     act_loss.backward(act_loss.output, y)
     dense2.backward(act_loss.dInputs)
-    activation1.backward(dense2.dInputs)
+    dropout1.backward(dense2.dInputs)
+    activation1.backward(dropout1.dInputs)
     dense1.backward(activation1.dInputs)
 
     #Update weights and biases

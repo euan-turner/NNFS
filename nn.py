@@ -26,7 +26,7 @@ class Dense_Layer():
         self.output = np.dot(inputs,self.weights) + self.biases
         ##Store inputs for use in partial derivative
         self.inputs = inputs
-    
+
     def backward(self, dValues : np.ndarray):
         ##Gradients on weights and biases
         self.dWeights = np.dot(self.inputs.T, dValues)
@@ -60,6 +60,31 @@ class Dense_Layer():
         if self.bias_reg_l2 > 0:
             dBL2 = 2 * self.bias_reg_l2 * self.biases
             self.dBiases += dBL2
+
+##Helps to protect against overfitting and reliance on neurons
+##by randomly setting neuron outputs to 0.
+##Encourages more neurons to pick up on underlying patterns.
+##Will not be used on test data or actual predictions, only in training.
+class Dropout_Layer():
+
+    def __init__(self, rate : float):
+        ##Rate represents dropout rate
+        ##So invert to get success rate
+        self.rate = 1 - rate
+    
+    def forward(self, inputs : np.ndarray):
+        self.input = inputs
+        ##Generate mask for output
+        ##With scale value to compensate for lower
+        ##output with fewer neurons
+        self.binary_mask = np.random.binomial(1, self.rate,
+                            size = inputs.shape) / self.rate
+        ##Apply mask
+        self.output = inputs * self.binary_mask
+    
+    def backward(self, dValues : np.ndarray):
+        ##Gradients on input values
+        self.dInputs = dValues * self.binary_mask
 
 
 class Act_ReLU():
