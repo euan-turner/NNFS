@@ -4,6 +4,7 @@ from nnfs.datasets import spiral_data
 
 nnfs.init()
 
+##Layer Classes
 class Dense_Layer():
 
     def __init__(self,n_inputs : int, n_neurons : int,
@@ -87,6 +88,7 @@ class Dropout_Layer():
         self.dInputs = dValues * self.binary_mask
 
 
+##Activation Function Classes
 class Act_ReLU():
 
     def forward(self, inputs : np.ndarray) -> np.ndarray:
@@ -98,82 +100,15 @@ class Act_ReLU():
         self.dInputs = dValues.copy()
         self.dInputs[self.inputs <= 0] = 0
 
+class Act_Sigmoid():
 
-class Loss():
-
-    def calculate(self,output : np.ndarray, target : np.ndarray) -> float:
-        sample_losses = self.forward(output,target)
-        mean_loss = np.mean(sample_losses)
-        return mean_loss
-
-    ##Regularisation loss calculation
-    ##Standard for all inheriting loss functions
-    def regularisation_loss(self, layer : Dense_Layer) -> float:
-        #0 by default
-        reg_loss = 0
-
-        ##L1 regularisation on weights
-        ##lambda x sum of absolute values of weights
-        if layer.weight_reg_l1 > 0:
-            reg_loss += layer.weight_reg_l1 * np.sum(np.abs(layer.weights))
-        
-        ##L2 regularisation on weights
-        ##lambda x sum of squares of weights
-        ##penalises large values more, and small values less
-        if layer.weight_reg_l2 > 0:
-            reg_loss += layer.weight_reg_l2 * np.sum(layer.weights * layer.weights)
-        
-        ##L1 regularisation on biases
-        if layer.bias_reg_l1 > 0:
-            reg_loss += layer.bias_reg_l1 * np.sum(np.abs(layer.biases))
-        
-        ##L2 regularisation on biases
-        if layer.bias_reg_l2 > 0:
-            reg_loss += layer.bias_reg_l2 * np.sum(layer.biases * layer.biases)
-        
-        return reg_loss
-
-
-class CCE_Loss(Loss):
-
-    def forward(self, y_pred : np.ndarray, y_true : np.ndarray) -> np.ndarray:
-        num_samples = len(y_pred)
-        ##Clip data to prevent division by 0
-        ##Clip from both sides so mean does not move
-        y_pred_clip = np.clip(y_pred, 1e-7, 1-1e-7)
-
-        ##Isolate probabilites for target values
-        if len(y_true.shape) == 1:
-            ##Categorical labels point to index of target in each input
-            confs = y_pred_clip[range(num_samples),y_true]
-        elif len(y_true.shape) == 2:
-            ##One-hot encoded labels for targets
-            confs = np.sum(y_pred_clip*y_true, axis=1)
-        
-        neg_log = -np.log(confs)
-        return neg_log
-
-    def backward(self, y_pred : np.ndarray, y_true : np.ndarray):
-
-        '''
-        Gradients of Categorical Cross-Entropy Loss are:
-        -(targets/predictions)
-        '''
-
-        ##Number of samples
-        samples = len(y_pred)
-        
-
-        ##If target labels are sparse, convert into one-hot encoded vectors
-        if len(y_true.shape) == 1:
-            ##Number of labels per samples
-            labels = len(y_pred[0])
-            y_true = np.eye(labels)[y_true]
-        
-        ##Gradients on predictions
-        self.dInputs = -(y_true/y_pred)
-        ##Normalize gradients - prevents excessively large gradients during optimisation
-        self.dInputs = self.dInputs / samples
+    def forward(self, inputs: np.ndarray):
+        self.inputs = inputs
+        self.output = 1 / (1 + np.exp(-inputs))
+    
+    def backward(self, dValues : np.ndarray):
+        ##Sigmoid derivative is sigmoid * (1 - sigmoid)
+        self.dInputs = dValues * (1 - self.output) * self.output
 
 
 class Act_Softmax():
@@ -220,6 +155,120 @@ class Act_Softmax():
                 ##Calculate sample-wise gradients for the batch
                 self.dInputs[index] = np.dot(jacobian_matrix, single_dValues)
 
+##Loss Classes
+class Loss():
+
+    def calculate(self,output : np.ndarray, target : np.ndarray) -> float:
+        sample_losses = self.forward(output,target)
+        mean_loss = np.mean(sample_losses)
+        return mean_loss
+
+    ##Regularisation loss calculation
+    ##Standard for all inheriting loss functions
+    def regularisation_loss(self, layer : Dense_Layer) -> float:
+        #0 by default
+        reg_loss = 0
+
+        ##L1 regularisation on weights
+        ##lambda x sum of absolute values of weights
+        if layer.weight_reg_l1 > 0:
+            reg_loss += layer.weight_reg_l1 * np.sum(np.abs(layer.weights))
+        
+        ##L2 regularisation on weights
+        ##lambda x sum of squares of weights
+        ##penalises large values more, and small values less
+        if layer.weight_reg_l2 > 0:
+            reg_loss += layer.weight_reg_l2 * np.sum(layer.weights * layer.weights)
+        
+        ##L1 regularisation on biases
+        if layer.bias_reg_l1 > 0:
+            reg_loss += layer.bias_reg_l1 * np.sum(np.abs(layer.biases))
+        
+        ##L2 regularisation on biases
+        if layer.bias_reg_l2 > 0:
+            reg_loss += layer.bias_reg_l2 * np.sum(layer.biases * layer.biases)
+        
+        return reg_loss
+
+
+##Categorical Cross Entropy Loss
+##For use when the network is classifying the input
+##and looking to have the correct neuron as 1, and others as 0
+class CCE_Loss(Loss):
+
+    def forward(self, y_pred : np.ndarray, y_true : np.ndarray) -> np.ndarray:
+        num_samples = len(y_pred)
+        ##Clip data to prevent division by 0
+        ##Clip from both sides so mean does not move
+        y_pred_clip = np.clip(y_pred, 1e-7, 1-1e-7)
+
+        ##Isolate probabilites for target values
+        if len(y_true.shape) == 1:
+            ##Categorical labels point to index of target in each input
+            confs = y_pred_clip[range(num_samples),y_true]
+        elif len(y_true.shape) == 2:
+            ##One-hot encoded labels for targets
+            confs = np.sum(y_pred_clip*y_true, axis=1)
+        
+        neg_log = -np.log(confs)
+        return neg_log
+
+    def backward(self, y_pred : np.ndarray, y_true : np.ndarray):
+
+        ##Gradients of Categorical Cross-Entropy Loss are:
+        ## -(targets/predictions)
+
+        ##Number of samples
+        samples = len(y_pred)
+        
+
+        ##If target labels are sparse, convert into one-hot encoded vectors
+        if len(y_true.shape) == 1:
+            ##Number of labels per samples
+            labels = len(y_pred[0])
+            y_true = np.eye(labels)[y_true]
+        
+        ##Gradients on predictions
+        self.dInputs = -(y_true/y_pred)
+        ##Normalize gradients - prevents excessively large gradients during optimisation
+        self.dInputs = self.dInputs / samples
+
+
+##Binary Cross Entropy Loss
+##For use in binary logistic regression
+##where each output neuron predicts one of two characteristics
+##e.g. indoors or outdoors, human or not human.
+class BCE_Loss(Loss):
+
+    def forward(self, y_pred : np.ndarray, y_true : np.ndarray) -> np.ndarray:
+        ##y_pred is both the predictions, and derivative being passed backwards
+        ##Clip data to prevent division by 0
+        ##Clip from both sides so mean does not move
+        y_pred_clipped = np.clip(y_pred, 1e-7, 1 - 1e-7)
+
+        ##Calculate sample-wise loss
+        sample_losses = -(y_true * np.log(y_pred_clipped) +
+                            (1 - y_true) * np.log(1 - y_pred_clipped))
+        sample_losses = np.mean(sample_losses, axis = -1)
+
+        return sample_losses
+    
+    def backward(self, y_pred : np.ndarray, y_true : np.ndarray):
+        ##y_pred is both the predictions, and derivative being passed backwards
+        ##Gradient of BCE is:
+        ##  -1/num outputs x(targets/predictions - (1 - targets)/(1-predictions))
+
+        num_samples = len(y_pred)
+        num_outputs = len(y_pred[0])
+
+        ##Clip data to prevent division by 0
+        ##Clip from both sides so mean does not move
+        y_pred_clipped = np.clip(y_pred, 1e-7, 1 - 1e-7)
+
+        self.dInputs = - (y_true / y_pred_clipped - 
+                            (1 - y_true) / (1 - y_pred_clipped)) / num_outputs
+        ##Normalise wrt number of sampels
+        self.dInputs = self.dInputs / num_samples
 
 ##Combining softmax and cce loss for more simplistic back propagation
 class Act_Softmax_CCE_Loss():
