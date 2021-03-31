@@ -195,9 +195,14 @@ class Loss():
     def remember_trainable(self, trainable : list):
         self.trainable = trainable
 
-    def calculate(self,output : np.ndarray, target : np.ndarray) -> float:
+    def calculate(self,output : np.ndarray, target : np.ndarray,
+                     *, include_regularisation : bool = False) -> float:
         sample_losses = self.forward(output,target)
         mean_loss = np.mean(sample_losses)
+
+        if include_regularisation == False:
+            return mean_loss
+        
         return mean_loss, self.regularisation_loss()
 
     ##Regularisation loss calculation
@@ -631,6 +636,26 @@ class Regression_Acc(Accuracy):
     def compare(self, preds : np.ndarray, targets : np.ndarray) -> np.ndarray:
         return np.absolute(preds - targets) < self.precision
 
+
+##Accuracy for classification model
+class Classification_Acc(Accuracy):
+
+    def __init__(self, *, binary = False):
+        ##Flag for binary classification (disables one-hot to sparse label conversion)
+        self.binary = binary
+    
+    ##Only needed for consistency in model
+    def init(self, y):
+        pass
+
+    ##Compares predictions to targets
+    def compare(self, preds : np.ndarray, targets : np.ndarray) -> np.ndarray:
+        if self.binary == False and len(targets.shape) == 2:
+            ##Convert from one-hot to sparse labels
+            targets = np.argmax(targets, axis = 1)
+        return preds == targets
+
+
 ##Turning the whole network into a model
 
 ##Input layer for consistency in model
@@ -694,7 +719,8 @@ class Model():
         self.loss_func.remember_trainable(self.trainable)
 
     ##Train the model
-    def train(self, X : np.ndarray, y : np.ndarray, epochs : int = 1, print_every : int = 1):
+    def train(self, X : np.ndarray, y : np.ndarray, 
+                epochs : int = 1, print_every : int = 1, test_data : np.ndarray = None):
         
         ##Set accuracy precision
         self.accuracy.init(y)
@@ -705,7 +731,7 @@ class Model():
             output = self.forward(X)
 
             ##Calculate loss
-            data_loss, reg_loss = self.loss_func.calculate(output, y)
+            data_loss, reg_loss = self.loss_func.calculate(output, y, include_regularisation = True)
             loss = data_loss + reg_loss
 
             ##Get predictions and calculate accuracy
@@ -729,6 +755,27 @@ class Model():
                       f'data_loss: {data_loss:.5f}, '+
                       f'reg_loss: {reg_loss:5f}), '+
                       f'lr: {self.optimizer.current_learning_rate:.10f}')
+        
+        ##Test the model
+        if test_data != None:
+            ##Unpack
+            X_test, y_test = test_data
+
+            ##Forward pass
+            output = self.forward(X_test)
+
+            ##Calculate loss
+            loss = self.loss_func.calculate(output, y_test)
+
+            ##Predictions and accuracy
+            predictions = self.output_layer_activation.predictions(output)
+            accuracy = self.accuracy.calculate(predictions, y_test)
+
+            ##Summary
+            print(f'Validation: ' +
+                  f'acc: {accuracy:.3f}, ' +
+                  f'loss: {loss:.3f}')
+
 
     ##Forward pass on all objects
     def forward(self, X : np.ndarray):
