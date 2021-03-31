@@ -7,11 +7,11 @@ nnfs.init()
 ##Layer Classes
 class Dense_Layer():
 
-    def __init__(self,n_inputs : int, n_neurons : int,
-        weight_reg_l1 : int = 0, weight_reg_l2 : int = 0,
-        bias_reg_l1 : int = 0, bias_reg_l2 : int = 0):
+    def __init__(self,n_inputs : int, n_neurons : int, weight_scale_factor : float = 0.01,
+                    weight_reg_l1 : int = 0, weight_reg_l2 : int = 0,
+                    bias_reg_l1 : int = 0, bias_reg_l2 : int = 0):
 
-        self.weights = 0.01 * np.random.randn(n_inputs,n_neurons)
+        self.weights = weight_scale_factor * np.random.randn(n_inputs,n_neurons)
         self.biases = np.zeros((1,n_neurons))
 
         ##Set regularisation strength
@@ -62,6 +62,7 @@ class Dense_Layer():
             dBL2 = 2 * self.bias_reg_l2 * self.biases
             self.dBiases += dBL2
 
+
 ##Helps to protect against overfitting and reliance on neurons
 ##by randomly setting neuron outputs to 0.
 ##Encourages more neurons to pick up on underlying patterns.
@@ -99,6 +100,7 @@ class Act_ReLU():
     def backward(self, dValues : np.ndarray):
         self.dInputs = dValues.copy()
         self.dInputs[self.inputs <= 0] = 0
+
 
 class Act_Sigmoid():
 
@@ -155,6 +157,19 @@ class Act_Softmax():
                 ##Calculate sample-wise gradients for the batch
                 self.dInputs[index] = np.dot(jacobian_matrix, single_dValues)
 
+
+class Act_Linear():
+    ##In reality this has little functionality, 
+    ##included for consistency
+
+    def forward(self, inputs : np.ndarray):
+        self.input = inputs
+        self.output = inputs
+    
+    def backward(self, dValues : np.ndarray):
+        self.dInputs = dValues
+
+
 ##Loss Classes
 class Loss():
 
@@ -194,6 +209,7 @@ class Loss():
 ##Categorical Cross Entropy Loss
 ##For use when the network is classifying the input
 ##and looking to have the correct neuron as 1, and others as 0
+##Data has class labels
 class CCE_Loss(Loss):
 
     def forward(self, y_pred : np.ndarray, y_true : np.ndarray) -> np.ndarray:
@@ -238,6 +254,7 @@ class CCE_Loss(Loss):
 ##For use in binary logistic regression
 ##where each output neuron predicts one of two characteristics
 ##e.g. indoors or outdoors, human or not human.
+##Data has class labels
 class BCE_Loss(Loss):
 
     def forward(self, y_pred : np.ndarray, y_true : np.ndarray) -> np.ndarray:
@@ -269,6 +286,53 @@ class BCE_Loss(Loss):
                             (1 - y_true) / (1 - y_pred_clipped)) / num_outputs
         ##Normalise wrt number of sampels
         self.dInputs = self.dInputs / num_samples
+
+
+##Mean Squared Error Loss (L2 Loss)
+##For use in regression
+##Squares the difference between predictions and targets
+##for each individual output, and averages
+##Data has value targets, e.g. temperature
+class MSE_Loss(Loss):
+    '''
+    (1 / num. outputs) * sum (targets - predictions)
+    '''
+
+    def forward(self, y_pred : np.ndarray, y_true : np.ndarray) -> np.ndarray:
+        sample_losses = np.mean((y_true - y_pred)**2, axis = -1)
+        return sample_losses
+    
+    def backward(self, y_pred : np.ndarray, y_true: np.ndarray):
+        num_samples = len(y_pred)
+        num_outputs = len(y_pred[0])
+
+        self.dInputs = -2 * (y_true - y_pred) / num_outputs
+        ##Normalise
+        self.dInputs = self.dInputs / num_samples
+
+
+##Mean Absolute Error Loss (L1 Loss)
+##For use in regression
+##Takes the absolute difference between predictions and targets
+##for each individual output, and averages
+##Use less frequently than L2 Loss
+class MAE_Loss(Loss):
+    '''
+    (1 / num. outputs) * sum(absolute(targets - predictions))
+    '''
+
+    def forward(self, y_pred : np.ndarray, y_true : np.ndarray) -> np.ndarray:
+        sample_losses = np.mean(np.abs(y_true - y_pred), axis = -1)
+        return sample_losses
+    
+    def backward(self, y_pred : np.ndarray, y_true : np.ndarray):
+        num_samples = len(y_pred)
+        num_outputs = len(y_pred[0])
+
+        self.dInputs = np.sign(y_true - y_pred) / num_outputs
+        ##Normalise
+        self.dInputs = self.dInputs / num_samples
+
 
 ##Combining softmax and cce loss for more simplistic back propagation
 class Act_Softmax_CCE_Loss():
