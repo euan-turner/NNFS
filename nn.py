@@ -100,6 +100,10 @@ class Act_ReLU():
     def backward(self, dValues : np.ndarray):
         self.dInputs = dValues.copy()
         self.dInputs[self.inputs <= 0] = 0
+    
+    ##Calculate predictions for outputs
+    def predictions(self, outputs : np.ndarray) -> np.ndarray:
+        return outputs
 
 
 class Act_Sigmoid():
@@ -111,6 +115,10 @@ class Act_Sigmoid():
     def backward(self, dValues : np.ndarray):
         ##Sigmoid derivative is sigmoid * (1 - sigmoid)
         self.dInputs = dValues * (1 - self.output) * self.output
+    
+    ##Calculate predictions for output (binary)
+    def predictions(self, outputs : np.ndarray) -> np.ndarray:
+        return (outputs > 0.5) * 1
 
 
 class Act_Softmax():
@@ -156,6 +164,10 @@ class Act_Softmax():
                 
                 ##Calculate sample-wise gradients for the batch
                 self.dInputs[index] = np.dot(jacobian_matrix, single_dValues)
+    
+    ##Calculate predictions for outputs
+    def predictions(self, outputs : np.ndarray) -> np.ndarray:
+        return np.argmax(outputs, axis = 1)
 
 
 class Act_Linear():
@@ -169,40 +181,52 @@ class Act_Linear():
     def backward(self, dValues : np.ndarray):
         self.dInputs = dValues
 
+    ##Calculate predictions for outputs
+    def predictions(self, outputs : np.ndarray) -> np.ndarray:
+        return outputs
+
 
 ##Loss Classes
+
+##Base class
 class Loss():
+
+    ##Remember trainable layers in network model
+    def remember_trainable(self, trainable : list):
+        self.trainable = trainable
 
     def calculate(self,output : np.ndarray, target : np.ndarray) -> float:
         sample_losses = self.forward(output,target)
         mean_loss = np.mean(sample_losses)
-        return mean_loss
+        return mean_loss, self.regularisation_loss()
 
     ##Regularisation loss calculation
     ##Standard for all inheriting loss functions
-    def regularisation_loss(self, layer : Dense_Layer) -> float:
+    def regularisation_loss(self) -> float:
         #0 by default
         reg_loss = 0
 
-        ##L1 regularisation on weights
-        ##lambda x sum of absolute values of weights
-        if layer.weight_reg_l1 > 0:
-            reg_loss += layer.weight_reg_l1 * np.sum(np.abs(layer.weights))
-        
-        ##L2 regularisation on weights
-        ##lambda x sum of squares of weights
-        ##penalises large values more, and small values less
-        if layer.weight_reg_l2 > 0:
-            reg_loss += layer.weight_reg_l2 * np.sum(layer.weights * layer.weights)
-        
-        ##L1 regularisation on biases
-        if layer.bias_reg_l1 > 0:
-            reg_loss += layer.bias_reg_l1 * np.sum(np.abs(layer.biases))
-        
-        ##L2 regularisation on biases
-        if layer.bias_reg_l2 > 0:
-            reg_loss += layer.bias_reg_l2 * np.sum(layer.biases * layer.biases)
-        
+        ##Iterate over all trainable layers for model
+        for layer in self.trainable:
+            ##L1 regularisation on weights
+            ##lambda x sum of absolute values of weights
+            if layer.weight_reg_l1 > 0:
+                reg_loss += layer.weight_reg_l1 * np.sum(np.abs(layer.weights))
+            
+            ##L2 regularisation on weights
+            ##lambda x sum of squares of weights
+            ##penalises large values more, and small values less
+            if layer.weight_reg_l2 > 0:
+                reg_loss += layer.weight_reg_l2 * np.sum(layer.weights * layer.weights)
+            
+            ##L1 regularisation on biases
+            if layer.bias_reg_l1 > 0:
+                reg_loss += layer.bias_reg_l1 * np.sum(np.abs(layer.biases))
+            
+            ##L2 regularisation on biases
+            if layer.bias_reg_l2 > 0:
+                reg_loss += layer.bias_reg_l2 * np.sum(layer.biases * layer.biases)
+            
         return reg_loss
 
 
@@ -366,6 +390,8 @@ class Act_Softmax_CCE_Loss():
         ##Normalize
         self.dInputs = self.dInputs/samples
 
+
+##Optimizer classes
 
 ##Stochastic Gradient Descent Optimizer
 class SGD_Optimizer():
@@ -574,3 +600,149 @@ class Adam_Optimizer():
     def post_update(self):
         self.iterations += 1
 
+
+##Accuracy classes
+
+##Base Class
+class Accuracy():
+
+    ##Calculates an accuracy
+    ##on predictions and targets
+    def calculate(self, preds : np.ndarray, targets : np.ndarray) -> float:
+        ##Method will vary depending on type of model
+        comparisons = self.compare(preds, targets)
+        accuracy = np.mean(comparisons)
+
+        return accuracy
+
+
+##Accuracy for regression model
+class Regression_Acc(Accuracy):
+
+    def __init__(self):
+        self.precision = None
+    
+    ##Calculates precision value based on targets
+    def init(self, targets : np.ndarray, reinit : bool = False, factor : int = 250):
+        if self.precision == None or reinit == True:
+            self.precision = np.std(targets) / factor
+    
+    ##Compares predictions and targets for regression
+    def compare(self, preds : np.ndarray, targets : np.ndarray) -> np.ndarray:
+        return np.absolute(preds - targets) < self.precision
+
+##Turning the whole network into a model
+
+##Input layer for consistency in model
+##has no backward as will not actually be trained in the network
+class Input_Layer():
+
+    def forward(self, inputs : np.ndarray):
+        self.output = inputs
+
+
+##Model class to contain all parts of the neural network
+class Model():
+
+    def __init__(self):
+        ##Will contain layer and activation objects
+        self.layers = []
+    
+    ##Add layer or activation object to model
+    def add(self, obj):
+        self.layers.append(obj)
+    
+    ##Set loss and optimizer objects
+    def set(self, *, loss, optimizer, accuracy):
+        self.loss_func = loss
+        self.optimizer = optimizer
+        self.accuracy = accuracy
+    
+    ##Finalise the model
+    def finalise(self):
+        ##Create input layer
+        self.input_layer = Input_Layer()
+
+        ##Number of objects in model
+        obj_count = len(self.layers)
+
+        ##Identify layers, not activations
+        self.trainable = []
+
+        ##Set up prev and next points (like a doubly linked list)
+        for i in range(obj_count):
+
+            ##First layer
+            if i == 0:
+                self.layers[i].prev = self.input_layer
+                self.layers[i].next = self.layers[i+1]
+
+            ##Except last layer
+            elif i < obj_count - 1:
+                self.layers[i].prev = self.layers[i-1]
+                self.layers[i].next = self.layers[i+1]
+
+            ##Last layer
+            else:
+                self.layers[i].prev = self.layers[i-1]
+                self.layers[i].next = self.loss_func
+                self.output_layer_activation = self.layers[i]
+
+            if hasattr(self.layers[i], 'weights'):
+                self.trainable.append(self.layers[i])
+        
+        self.loss_func.remember_trainable(self.trainable)
+
+    ##Train the model
+    def train(self, X : np.ndarray, y : np.ndarray, epochs : int = 1, print_every : int = 1):
+        
+        ##Set accuracy precision
+        self.accuracy.init(y)
+
+        ##Main training loop
+        for epoch in range(1, epochs+1):
+            ##Forward pass
+            output = self.forward(X)
+
+            ##Calculate loss
+            data_loss, reg_loss = self.loss_func.calculate(output, y)
+            loss = data_loss + reg_loss
+
+            ##Get predictions and calculate accuracy
+            predictions = self.output_layer_activation.predictions(output)
+            accuracy = self.accuracy.calculate(predictions, y)
+
+            ##Backward pass
+            self.backward(output, y)
+
+            ##Optimise parameters
+            self.optimizer.pre_update()
+            for layer in self.trainable:
+                self.optimizer.update_parameters(layer)
+            self.optimizer.post_update()
+
+            ##Print summary
+            if epoch%print_every == 0:
+                print(f'epoch: {epoch}, '+
+                      f'acc: {accuracy:.3f}, '+
+                      f'loss: {loss:.3f}, ('+
+                      f'data_loss: {data_loss:.5f}, '+
+                      f'reg_loss: {reg_loss:5f}), '+
+                      f'lr: {self.optimizer.current_learning_rate:.10f}')
+
+    ##Forward pass on all objects
+    def forward(self, X : np.ndarray):
+        self.input_layer.forward(X)
+
+        for layer in self.layers:
+            layer.forward(layer.prev.output)
+        
+        return layer.output
+    
+    ##Backward pass on all objectes
+    def backward(self, output : np.ndarray, targets : np.ndarray):
+        self.loss_func.backward(output, targets)
+
+        for layer in reversed(self.layers):
+            layer.backward(layer.next.dInputs)
+    
