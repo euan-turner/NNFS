@@ -21,8 +21,9 @@ class Dense_Layer():
         self.bias_reg_l2 = bias_reg_l2
         ##Often, only l2 regularisation will be used, as l1 can affect small
         ##values too much
-
-    def forward(self, inputs : np.ndarray) -> np.ndarray:
+    
+    ##Training is redundant, for consistency
+    def forward(self, inputs : np.ndarray, training : bool) -> np.ndarray:
         ##Forward propagate value through layer
         self.output = np.dot(inputs,self.weights) + self.biases
         ##Store inputs for use in partial derivative
@@ -73,9 +74,15 @@ class Dropout_Layer():
         ##Rate represents dropout rate
         ##So invert to get success rate
         self.rate = 1 - rate
-    
-    def forward(self, inputs : np.ndarray):
+
+    ##Training deactivates the dropout layer in testing and use
+    def forward(self, inputs : np.ndarray, training : bool):
         self.input = inputs
+
+        if not training:
+            self.output = inputs.copy()
+            return
+
         ##Generate mask for output
         ##With scale value to compensate for lower
         ##output with fewer neurons
@@ -92,7 +99,8 @@ class Dropout_Layer():
 ##Activation Function Classes
 class Act_ReLU():
 
-    def forward(self, inputs : np.ndarray) -> np.ndarray:
+    ##Training is redundant, for consistency
+    def forward(self, inputs : np.ndarray, training : bool):
         self.output = np.maximum(0,inputs)
         ##Store inputs for back partial derivative
         self.inputs = inputs
@@ -100,22 +108,32 @@ class Act_ReLU():
     def backward(self, dValues : np.ndarray):
         self.dInputs = dValues.copy()
         self.dInputs[self.inputs <= 0] = 0
+    
+    ##Calculate predictions for outputs
+    def predictions(self, outputs : np.ndarray) -> np.ndarray:
+        return outputs
 
 
 class Act_Sigmoid():
 
-    def forward(self, inputs: np.ndarray):
+    ##Training is redundant, for consistency
+    def forward(self, inputs: np.ndarray, training : bool):
         self.inputs = inputs
         self.output = 1 / (1 + np.exp(-inputs))
     
     def backward(self, dValues : np.ndarray):
         ##Sigmoid derivative is sigmoid * (1 - sigmoid)
         self.dInputs = dValues * (1 - self.output) * self.output
+    
+    ##Calculate predictions for output (binary)
+    def predictions(self, outputs : np.ndarray) -> np.ndarray:
+        return (outputs > 0.5) * 1
 
 
 class Act_Softmax():
 
-    def forward(self, inputs : np.ndarray) -> np.ndarray:
+    ##Training is redundant, for consistency
+    def forward(self, inputs : np.ndarray, training : bool):
         ##Processing batch values, hence keepdims
         ##Make every value negative prior to exponentiation, so range is 0 to 1
         exp_values = np.exp(inputs-np.max(inputs,axis=1,keepdims=True))
@@ -156,53 +174,75 @@ class Act_Softmax():
                 
                 ##Calculate sample-wise gradients for the batch
                 self.dInputs[index] = np.dot(jacobian_matrix, single_dValues)
+    
+    ##Calculate predictions for outputs
+    def predictions(self, outputs : np.ndarray) -> np.ndarray:
+        return np.argmax(outputs, axis = 1)
 
 
 class Act_Linear():
     ##In reality this has little functionality, 
     ##included for consistency
 
-    def forward(self, inputs : np.ndarray):
+    ##Training is redundant, for consistency
+    def forward(self, inputs : np.ndarray, training : bool):
         self.input = inputs
         self.output = inputs
     
     def backward(self, dValues : np.ndarray):
         self.dInputs = dValues
 
+    ##Calculate predictions for outputs
+    def predictions(self, outputs : np.ndarray) -> np.ndarray:
+        return outputs
+
 
 ##Loss Classes
+
+##Base class
 class Loss():
 
-    def calculate(self,output : np.ndarray, target : np.ndarray) -> float:
+    ##Remember trainable layers in network model
+    def remember_trainable(self, trainable : list):
+        self.trainable = trainable
+
+    def calculate(self,output : np.ndarray, target : np.ndarray,
+                     *, include_regularisation : bool = False) -> float:
         sample_losses = self.forward(output,target)
         mean_loss = np.mean(sample_losses)
-        return mean_loss
+
+        if include_regularisation == False:
+            return mean_loss
+        
+        return mean_loss, self.regularisation_loss()
 
     ##Regularisation loss calculation
     ##Standard for all inheriting loss functions
-    def regularisation_loss(self, layer : Dense_Layer) -> float:
+    def regularisation_loss(self) -> float:
         #0 by default
         reg_loss = 0
 
-        ##L1 regularisation on weights
-        ##lambda x sum of absolute values of weights
-        if layer.weight_reg_l1 > 0:
-            reg_loss += layer.weight_reg_l1 * np.sum(np.abs(layer.weights))
-        
-        ##L2 regularisation on weights
-        ##lambda x sum of squares of weights
-        ##penalises large values more, and small values less
-        if layer.weight_reg_l2 > 0:
-            reg_loss += layer.weight_reg_l2 * np.sum(layer.weights * layer.weights)
-        
-        ##L1 regularisation on biases
-        if layer.bias_reg_l1 > 0:
-            reg_loss += layer.bias_reg_l1 * np.sum(np.abs(layer.biases))
-        
-        ##L2 regularisation on biases
-        if layer.bias_reg_l2 > 0:
-            reg_loss += layer.bias_reg_l2 * np.sum(layer.biases * layer.biases)
-        
+        ##Iterate over all trainable layers for model
+        for layer in self.trainable:
+            ##L1 regularisation on weights
+            ##lambda x sum of absolute values of weights
+            if layer.weight_reg_l1 > 0:
+                reg_loss += layer.weight_reg_l1 * np.sum(np.abs(layer.weights))
+            
+            ##L2 regularisation on weights
+            ##lambda x sum of squares of weights
+            ##penalises large values more, and small values less
+            if layer.weight_reg_l2 > 0:
+                reg_loss += layer.weight_reg_l2 * np.sum(layer.weights * layer.weights)
+            
+            ##L1 regularisation on biases
+            if layer.bias_reg_l1 > 0:
+                reg_loss += layer.bias_reg_l1 * np.sum(np.abs(layer.biases))
+            
+            ##L2 regularisation on biases
+            if layer.bias_reg_l2 > 0:
+                reg_loss += layer.bias_reg_l2 * np.sum(layer.biases * layer.biases)
+            
         return reg_loss
 
 
@@ -336,16 +376,11 @@ class MAE_Loss(Loss):
 
 ##Combining softmax and cce loss for more simplistic back propagation
 class Act_Softmax_CCE_Loss():
-
+    '''
     def __init__(self):
         self.act_softmax = Act_Softmax()
         self.cce_loss = CCE_Loss()
-
-    def forward(self, inputs : np.ndarray, y_true : np.ndarray) -> int:
-        self.act_softmax.forward(inputs)
-        self.output = self.act_softmax.output ##Model's prediction values
-        ##Calculate and return loss value
-        return self.cce_loss.calculate(self.output, y_true)
+        '''
 
     def backward(self, y_pred, y_true):
 
@@ -367,10 +402,12 @@ class Act_Softmax_CCE_Loss():
         self.dInputs = self.dInputs/samples
 
 
+##Optimizer classes
+
 ##Stochastic Gradient Descent Optimizer
 class SGD_Optimizer():
 
-    def __init__(self, learning_rate : float = 1.0, decay : float = 0.0, momentum : float= 0.0):
+    def __init__(self, learning_rate : float = 1.0, decay : float = 0.0, momentum : float = 0.0):
         self.learning_rate = learning_rate
         self.decay = decay
         self.current_learning_rate = learning_rate
@@ -574,3 +611,211 @@ class Adam_Optimizer():
     def post_update(self):
         self.iterations += 1
 
+
+##Accuracy classes
+
+##Base Class
+class Accuracy():
+
+    ##Calculates an accuracy
+    ##on predictions and targets
+    def calculate(self, preds : np.ndarray, targets : np.ndarray) -> float:
+        ##Method will vary depending on type of model
+        comparisons = self.compare(preds, targets)
+        accuracy = np.mean(comparisons)
+
+        return accuracy
+
+
+##Accuracy for regression model
+class Regression_Acc(Accuracy):
+
+    def __init__(self):
+        self.precision = None
+    
+    ##Calculates precision value based on targets
+    def init(self, targets : np.ndarray, reinit : bool = False, factor : int = 250):
+        if self.precision == None or reinit == True:
+            self.precision = np.std(targets) / factor
+    
+    ##Compares predictions and targets for regression
+    def compare(self, preds : np.ndarray, targets : np.ndarray) -> np.ndarray:
+        return np.absolute(preds - targets) < self.precision
+
+
+##Accuracy for classification model
+class Classification_Acc(Accuracy):
+
+    def __init__(self, *, binary = False):
+        ##Flag for binary classification (disables one-hot to sparse label conversion)
+        self.binary = binary
+    
+    ##Only needed for consistency in model
+    def init(self, y):
+        pass
+
+    ##Compares predictions to targets
+    def compare(self, preds : np.ndarray, targets : np.ndarray) -> np.ndarray:
+        if self.binary == False and len(targets.shape) == 2:
+            ##Convert from one-hot to sparse labels
+            targets = np.argmax(targets, axis = 1)
+        return preds == targets
+
+
+##Turning the whole network into a model
+
+##Input layer for consistency in model
+##has no backward as will not actually be trained in the network
+class Input_Layer():
+
+    ##Training is only for consistency
+    def forward(self, inputs : np.ndarray, training : bool):
+        self.output = inputs
+
+
+##Model class to contain all parts of the neural network
+class Model():
+
+    def __init__(self):
+        ##Will contain layer and activation objects
+        self.layers = []
+        ##Softmax classifier's output object
+        self.softmax_classifier_output = None
+    
+    ##Add layer or activation object to model
+    def add(self, obj):
+        self.layers.append(obj)
+    
+    ##Set loss and optimizer objects
+    def set(self, *, loss, optimizer, accuracy):
+        self.loss_func = loss
+        self.optimizer = optimizer
+        self.accuracy = accuracy
+    
+    ##Finalise the model
+    def finalise(self):
+        ##Create input layer
+        self.input_layer = Input_Layer()
+
+        ##Number of objects in model
+        obj_count = len(self.layers)
+
+        ##Identify layers, not activations
+        self.trainable = []
+
+        ##Set up prev and next points (like a doubly linked list)
+        for i in range(obj_count):
+
+            ##First layer
+            if i == 0:
+                self.layers[i].prev = self.input_layer
+                self.layers[i].next = self.layers[i+1]
+
+            ##Except last layer
+            elif i < obj_count - 1:
+                self.layers[i].prev = self.layers[i-1]
+                self.layers[i].next = self.layers[i+1]
+
+            ##Last layer
+            else:
+                self.layers[i].prev = self.layers[i-1]
+                self.layers[i].next = self.loss_func
+                self.output_layer_activation = self.layers[i]
+
+            if hasattr(self.layers[i], 'weights'):
+                self.trainable.append(self.layers[i])
+        
+        self.loss_func.remember_trainable(self.trainable)
+
+        ##Check if Softmax and CCE loss can be combined
+        ##to speed up backward pass
+        if isinstance(self.layers[-1], Act_Softmax) and \
+           isinstance(self.loss_func, CCE_Loss):
+           ##Combined softmax and cce function
+           self.softmax_classifier_output = Act_Softmax_CCE_Loss()
+
+    ##Train the model
+    def train(self, X : np.ndarray, y : np.ndarray, 
+                epochs : int = 1, print_every : int = 1, test_data : np.ndarray = None):
+        
+        ##Set accuracy precision
+        self.accuracy.init(y)
+
+        ##Main training loop
+        for epoch in range(1, epochs+1):
+            ##Forward pass
+            output = self.forward(X, training = True)
+
+            ##Calculate loss
+            data_loss, reg_loss = self.loss_func.calculate(output, y, include_regularisation = True)
+            loss = data_loss + reg_loss
+
+            ##Get predictions and calculate accuracy
+            predictions = self.output_layer_activation.predictions(output)
+            accuracy = self.accuracy.calculate(predictions, y)
+
+            ##Backward pass
+            self.backward(output, y)
+
+            ##Optimise parameters
+            self.optimizer.pre_update()
+            for layer in self.trainable:
+                self.optimizer.update_parameters(layer)
+            self.optimizer.post_update()
+
+            ##Print summary
+            if epoch%print_every == 0:
+                print(f'epoch: {epoch}, '+
+                      f'acc: {accuracy:.3f}, '+
+                      f'loss: {loss:.3f}, ('+
+                      f'data_loss: {data_loss:.5f}, '+
+                      f'reg_loss: {reg_loss:5f}), '+
+                      f'lr: {self.optimizer.current_learning_rate:.10f}')
+        
+        ##Test the model
+        if test_data != None:
+            ##Unpack
+            X_test, y_test = test_data
+
+            ##Forward pass
+            output = self.forward(X_test, training = False)
+
+            ##Calculate loss
+            loss = self.loss_func.calculate(output, y_test)
+
+            ##Predictions and accuracy
+            predictions = self.output_layer_activation.predictions(output)
+            accuracy = self.accuracy.calculate(predictions, y_test)
+
+            ##Summary
+            print(f'Validation: ' +
+                  f'acc: {accuracy:.3f}, ' +
+                  f'loss: {loss:.3f}')
+
+
+    ##Forward pass on all objects
+    def forward(self, X : np.ndarray, training : bool):
+        self.input_layer.forward(X, training)
+
+        for layer in self.layers:
+            layer.forward(layer.prev.output, training)
+        
+        return layer.output
+    
+    ##Backward pass on all objectes
+    def backward(self, output : np.ndarray, targets : np.ndarray):
+        ##If using softmax and cce loss for classification
+        if self.softmax_classifier_output != None:
+            ##Backward method on combined object
+            self.softmax_classifier_output.backward(output, targets)
+            ##Set dInputs for softmax in self.layers
+            self.layers[-1].dInputs = self.softmax_classifier_output.dInputs
+            ##Backward pass on all object except last softmax activation
+            for layer in reversed(self.layers[:-1]):
+                layer.backward(layer.next.dInputs)
+            return
+        self.loss_func.backward(output, targets)
+
+        for layer in reversed(self.layers):
+            layer.backward(layer.next.dInputs)
+    
