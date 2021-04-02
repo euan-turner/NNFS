@@ -21,8 +21,9 @@ class Dense_Layer():
         self.bias_reg_l2 = bias_reg_l2
         ##Often, only l2 regularisation will be used, as l1 can affect small
         ##values too much
-
-    def forward(self, inputs : np.ndarray) -> np.ndarray:
+    
+    ##Training is redundant, for consistency
+    def forward(self, inputs : np.ndarray, training : bool) -> np.ndarray:
         ##Forward propagate value through layer
         self.output = np.dot(inputs,self.weights) + self.biases
         ##Store inputs for use in partial derivative
@@ -73,9 +74,15 @@ class Dropout_Layer():
         ##Rate represents dropout rate
         ##So invert to get success rate
         self.rate = 1 - rate
-    
-    def forward(self, inputs : np.ndarray):
+
+    ##Training deactivates the dropout layer in testing and use
+    def forward(self, inputs : np.ndarray, training : bool):
         self.input = inputs
+
+        if not training:
+            self.output = inputs.copy()
+            return
+
         ##Generate mask for output
         ##With scale value to compensate for lower
         ##output with fewer neurons
@@ -92,7 +99,8 @@ class Dropout_Layer():
 ##Activation Function Classes
 class Act_ReLU():
 
-    def forward(self, inputs : np.ndarray) -> np.ndarray:
+    ##Training is redundant, for consistency
+    def forward(self, inputs : np.ndarray, training : bool):
         self.output = np.maximum(0,inputs)
         ##Store inputs for back partial derivative
         self.inputs = inputs
@@ -108,7 +116,8 @@ class Act_ReLU():
 
 class Act_Sigmoid():
 
-    def forward(self, inputs: np.ndarray):
+    ##Training is redundant, for consistency
+    def forward(self, inputs: np.ndarray, training : bool):
         self.inputs = inputs
         self.output = 1 / (1 + np.exp(-inputs))
     
@@ -123,7 +132,8 @@ class Act_Sigmoid():
 
 class Act_Softmax():
 
-    def forward(self, inputs : np.ndarray) -> np.ndarray:
+    ##Training is redundant, for consistency
+    def forward(self, inputs : np.ndarray, training : bool):
         ##Processing batch values, hence keepdims
         ##Make every value negative prior to exponentiation, so range is 0 to 1
         exp_values = np.exp(inputs-np.max(inputs,axis=1,keepdims=True))
@@ -174,7 +184,8 @@ class Act_Linear():
     ##In reality this has little functionality, 
     ##included for consistency
 
-    def forward(self, inputs : np.ndarray):
+    ##Training is redundant, for consistency
+    def forward(self, inputs : np.ndarray, training : bool):
         self.input = inputs
         self.output = inputs
     
@@ -369,12 +380,6 @@ class Act_Softmax_CCE_Loss():
     def __init__(self):
         self.act_softmax = Act_Softmax()
         self.cce_loss = CCE_Loss()
-
-    def forward(self, inputs : np.ndarray, y_true : np.ndarray) -> int:
-        self.act_softmax.forward(inputs)
-        self.output = self.act_softmax.output ##Model's prediction values
-        ##Calculate and return loss value
-        return self.cce_loss.calculate(self.output, y_true)
 
     def backward(self, y_pred, y_true):
 
@@ -672,6 +677,8 @@ class Model():
     def __init__(self):
         ##Will contain layer and activation objects
         self.layers = []
+        ##Softmax classifier's output object
+        self.softmax_classifier_output = None
     
     ##Add layer or activation object to model
     def add(self, obj):
@@ -718,6 +725,13 @@ class Model():
         
         self.loss_func.remember_trainable(self.trainable)
 
+        ##Check if Softmax and CCE loss can be combined
+        ##to speed up backward pass
+        if isinstance(self.layers[-1], Act_Softmax) and \
+           isinstance(self.loss_func, CCE_Loss):
+           ##Combined softmax and cce function
+           self.softmax_classifier_output = Act_Softmax_CCE_Loss()
+
     ##Train the model
     def train(self, X : np.ndarray, y : np.ndarray, 
                 epochs : int = 1, print_every : int = 1, test_data : np.ndarray = None):
@@ -728,7 +742,7 @@ class Model():
         ##Main training loop
         for epoch in range(1, epochs+1):
             ##Forward pass
-            output = self.forward(X)
+            output = self.forward(X, training = True)
 
             ##Calculate loss
             data_loss, reg_loss = self.loss_func.calculate(output, y, include_regularisation = True)
@@ -762,7 +776,7 @@ class Model():
             X_test, y_test = test_data
 
             ##Forward pass
-            output = self.forward(X_test)
+            output = self.forward(X_test, training = False)
 
             ##Calculate loss
             loss = self.loss_func.calculate(output, y_test)
@@ -778,16 +792,26 @@ class Model():
 
 
     ##Forward pass on all objects
-    def forward(self, X : np.ndarray):
-        self.input_layer.forward(X)
+    def forward(self, X : np.ndarray, training : bool):
+        self.input_layer.forward(X, training)
 
         for layer in self.layers:
-            layer.forward(layer.prev.output)
+            layer.forward(layer.prev.output, training)
         
         return layer.output
     
     ##Backward pass on all objectes
     def backward(self, output : np.ndarray, targets : np.ndarray):
+        ##If using softmax and cce loss for classification
+        if self.softmax_classifier_output != None:
+            ##Backward method on combined object
+            self.softmax_classifier_output.backward(output, targets)
+            ##Set dInputs for softmax in self.layers
+            self.layers[-1].dInputs = self.softmax_classifier_output.dInputs
+            ##Backward pass on all object except last softmax activation
+            for layer in reversed(self.layers[:-1]):
+                layer.backward(layer.next.dInputs)
+            return
         self.loss_func.backward(output, targets)
 
         for layer in reversed(self.layers):
