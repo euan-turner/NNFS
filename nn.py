@@ -376,10 +376,11 @@ class MAE_Loss(Loss):
 
 ##Combining softmax and cce loss for more simplistic back propagation
 class Act_Softmax_CCE_Loss():
-
+    '''
     def __init__(self):
         self.act_softmax = Act_Softmax()
         self.cce_loss = CCE_Loss()
+        '''
 
     def backward(self, y_pred, y_true):
 
@@ -406,7 +407,7 @@ class Act_Softmax_CCE_Loss():
 ##Stochastic Gradient Descent Optimizer
 class SGD_Optimizer():
 
-    def __init__(self, learning_rate : float = 1.0, decay : float = 0.0, momentum : float= 0.0):
+    def __init__(self, learning_rate : float = 1.0, decay : float = 0.0, momentum : float = 0.0):
         self.learning_rate = learning_rate
         self.decay = decay
         self.current_learning_rate = learning_rate
@@ -667,7 +668,8 @@ class Classification_Acc(Accuracy):
 ##has no backward as will not actually be trained in the network
 class Input_Layer():
 
-    def forward(self, inputs : np.ndarray):
+    ##Training is only for consistency
+    def forward(self, inputs : np.ndarray, training : bool):
         self.output = inputs
 
 
