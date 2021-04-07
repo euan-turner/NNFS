@@ -2,4 +2,4 @@
 fashion_mnist_images/
 
 #Don't track binary
-*.cpython-38
+__pycache__/
