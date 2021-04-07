@@ -1,2 +1,5 @@
 #Don't track datasets
 fashion_mnist_images/
+
+#Don't track binary
+__pycache__/

@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import os
 import nnfs
+from nn import *
 
 nnfs.init()
 
@@ -31,7 +32,6 @@ def load_mnist_dataset(dataset, path):
 
 ##Create train and test data
 def create_mnist_data(path):
-
     ##Load train data
     X, y = load_mnist_dataset('train', path)
     ##Load test data
@@ -57,7 +57,32 @@ np.random.shuffle(keys)
 X = X[keys]
 y = y[keys]
 
-print(y[:15])
+##Instantiate model
+model = Model()
+
+##Add layers
+model.add(Dense_Layer(X.shape[1], 64))
+model.add(Act_ReLU())
+model.add(Dense_Layer(64,64))
+model.add(Act_ReLU())
+model.add(Dense_Layer(64,10))
+model.add(Act_Softmax())
+
+##Add loss and optimizer
+model.set(
+    loss = CCE_Loss(),
+    optimizer = Adam_Optimizer(decay = 5e-5),
+    accuracy = Classification_Acc()
+)
+
+##Finalise model
+model.finalise()
+
+##Train
+model.train(X, y, test_data = (X_test, y_test), 
+    epochs = 5, batch_size = 128, print_every = 100)
+
+
 
 
 
