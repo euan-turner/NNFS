@@ -26,20 +26,23 @@ def load_mnist_dataset(dataset, path):
             
             X.append(image)
             y.append(label)
-    
     ##Convert to numpy arrays
     return np.array(X), np.array(y).astype('uint8')
 
 ##Create train and test data
 def create_mnist_data(path):
     ##Load train data
+    print("Loading train")
     X, y = load_mnist_dataset('train', path)
+    print("Loaded train")
     ##Load test data
+    print("Loading test")
     X_test, y_test = load_mnist_dataset('test', path)
+    print("Loaded test")
 
     return X, y, X_test, y_test
 
-
+print(1)
 ##Create dataset
 X, y, X_test, y_test = create_mnist_data('fashion_mnist_images')
 
@@ -61,17 +64,17 @@ y = y[keys]
 model = Model()
 
 ##Add layers
-model.add(Dense_Layer(X.shape[1], 64))
+model.add(Dense_Layer(X.shape[1], 128))
 model.add(Act_ReLU())
-model.add(Dense_Layer(64,64))
+model.add(Dense_Layer(128,128))
 model.add(Act_ReLU())
-model.add(Dense_Layer(64,10))
+model.add(Dense_Layer(128,10))
 model.add(Act_Softmax())
 
 ##Add loss and optimizer
 model.set(
     loss = CCE_Loss(),
-    optimizer = Adam_Optimizer(decay = 5e-5),
+    optimizer = Adam_Optimizer(decay = 1e-3),
     accuracy = Classification_Acc()
 )
 
@@ -80,8 +83,10 @@ model.finalise()
 
 ##Train
 model.train(X, y, test_data = (X_test, y_test), 
-    epochs = 5, batch_size = 128, print_every = 100)
+    epochs = 10, batch_size = 128, print_every = 100)
 
+##Second evaluation on training data
+model.evaluate(X,y)
 
 
 

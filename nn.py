@@ -872,41 +872,8 @@ class Model():
         ##Test the model
         if test_data != None:
 
-            ##Reset accumulated values in loss and accuracy objects
-            self.loss_func.new_pass()
-            self.accuracy.new_pass()
-
-            for step in range(test_steps):
-                ##If batch size is not set
-                ##test using full dataset
-                if batch_size == None:
-                    batch_X = X_test
-                    batch_y = y_test
-
-                ##Otherwise slice batch
-                else:
-                    batch_X = X_test[step*batch_size:(step+1)*batch_size]
-                    batch_y = y_test[step*batch_size:(step+1)*batch_size]
-                
-                ##Forward pass
-                output = self.forward(batch_X, training = False)
-
-                ##Calculate loss
-                loss = self.loss_func.calculate(output, batch_y)
-
-                ##Predictions and accuracy
-                predictions = self.output_layer_activation.predictions(output)
-                accuracy = self.accuracy.calculate(predictions, batch_y)
-            
-            ##Accumulated loss and accuracy
-            test_loss = self.loss_func.calculate_accumulated()
-            test_accuracy = self.accuracy.calculate_accumulated()
-
-            ##Summary
-            print(f'Validation: ' +
-                  f'acc: {test_accuracy:.3f}, ' +
-                  f'loss: {test_loss:.3f}'
-            )
+            ##Evaluate the model
+            self.evaluate(*test_data, batch_size = batch_size)
 
 
     ##Forward pass on all objects
@@ -934,4 +901,53 @@ class Model():
 
         for layer in reversed(self.layers):
             layer.backward(layer.next.dInputs)
+    
+    ##Evaluate the model
+    def evaluate(self, X_val : np.ndarray, y_val : np.ndarray, *, batch_size = None):
+        ##Calculate number of steps
+        test_steps = 1
+
+        if batch_size != None:
+            test_steps = len(X_val) // batch_size
+            ##Step for remaining data
+            if test_steps * batch_size < len(X_val):
+                test_steps += 1
+        
+        ##Reset accumulated values in loss and accuracy objects
+        self.loss_func.new_pass()
+        self.accuracy.new_pass()
+
+        for step in range(test_steps):
+            ##If batch size is not set
+            ##test using full dataset
+            if batch_size == None:
+                batch_X = X_val
+                batch_y = y_val
+
+            ##Otherwise slice batch
+            else:
+                batch_X = X_val[step*batch_size:(step+1)*batch_size]
+                batch_y = y_val[step*batch_size:(step+1)*batch_size]
+            
+            ##Forward pass
+            output = self.forward(batch_X, training = False)
+
+            ##Calculate loss
+            loss = self.loss_func.calculate(output, batch_y)
+
+            ##Predictions and accuracy
+            predictions = self.output_layer_activation.predictions(output)
+            accuracy = self.accuracy.calculate(predictions, batch_y)
+        
+        ##Accumulated loss and accuracy
+        test_loss = self.loss_func.calculate_accumulated()
+        test_accuracy = self.accuracy.calculate_accumulated()
+
+        ##Summary
+        print(f'Validation: ' +
+                f'acc: {test_accuracy:.3f}, ' +
+                f'loss: {test_loss:.3f}'
+        )
+
+        
     
