@@ -21,7 +21,7 @@ model.add(Dense_Layer(512,3))
 model.add(Act_Softmax())
 
 ##Set loss, optimizer and accuracy
-model.set(
+model.setup(
     loss = CCE_Loss(),
     optimizer = Adam_Optimizer(learning_rate = 0.05, decay = 5e-5),
     accuracy = Classification_Acc()

@@ -21,7 +21,7 @@ model.add(Dense_Layer(64, 1))
 model.add(Act_Sigmoid())
 
 ##Set loss, optimizer and accuracy
-model.set(
+model.setup(
     loss = BCE_Loss(),
     optimizer = Adam_Optimizer(decay = 5e-7),
     accuracy = Classification_Acc(binary = True)

@@ -62,7 +62,15 @@ class Dense_Layer():
         if self.bias_reg_l2 > 0:
             dBL2 = 2 * self.bias_reg_l2 * self.biases
             self.dBiases += dBL2
-
+    
+    ##Retrieve parameters
+    def get_params(self) -> (np.ndarray, np.ndarray):
+        return self.weights, self.biases
+    
+    ##Set weights and biases
+    def set_params(self, weights: np.ndarray, biases : np.ndarray):
+        self.weights = weights
+        self.biases = biases
 
 ##Helps to protect against overfitting and reliance on neurons
 ##by randomly setting neuron outputs to 0.
@@ -762,7 +770,8 @@ class Model():
             if hasattr(self.layers[i], 'weights'):
                 self.trainable.append(self.layers[i])
         
-        self.loss_func.remember_trainable(self.trainable)
+        if self.loss_func != None:
+            self.loss_func.remember_trainable(self.trainable)
 
         ##Check if Softmax and CCE loss can be combined
         ##to speed up backward pass
@@ -948,6 +957,20 @@ class Model():
                 f'acc: {test_accuracy:.3f}, ' +
                 f'loss: {test_loss:.3f}'
         )
+    
+    ##Return parameters for all trainable layers
+    def get_params(self) -> [(np.ndarray, np.ndarray),...]:
+        parameters = []
+        for layer in self.trainable:
+            parameters.append(layer.get_parameters())
+        
+        return parameters
 
+    ##Set new parameters for model
+    def set_params(self, parameters : [(np.ndarray,np.ndarray),...]):
+
+        ##Iterate over parameters and corresponding layers
+        for params, layer in zip(parameters, self.trainable):
+            layer.set_params(*params)
         
     

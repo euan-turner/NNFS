@@ -18,7 +18,7 @@ model.add(Dense_Layer(64,1))
 model.add(Act_Linear())
 
 ##Set loss, optimizer and accuracy objects
-model.set(
+model.setup(
     loss = MSE_Loss(),
     optimizer = Adam_Optimizer(learning_rate= 0.005, decay = 1e-3),
     accuracy = Regression_Acc()

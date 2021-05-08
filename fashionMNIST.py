@@ -72,7 +72,7 @@ model.add(Dense_Layer(128,10))
 model.add(Act_Softmax())
 
 ##Add loss and optimizer
-model.set(
+model.setup(
     loss = CCE_Loss(),
     optimizer = Adam_Optimizer(decay = 1e-3),
     accuracy = Classification_Acc()
@@ -88,6 +88,8 @@ model.train(X, y, test_data = (X_test, y_test),
 ##Second evaluation on training data
 model.evaluate(X,y)
 
+##Retrieve model parameters
+parameters = model.get_params()
 
 
 
