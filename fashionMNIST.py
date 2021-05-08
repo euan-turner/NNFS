@@ -42,7 +42,7 @@ def create_mnist_data(path):
 
     return X, y, X_test, y_test
 
-print(1)
+
 ##Create dataset
 X, y, X_test, y_test = create_mnist_data('fashion_mnist_images')
 
@@ -90,6 +90,36 @@ model.evaluate(X,y)
 
 ##Retrieve model parameters
 parameters = model.get_params()
+print(parameters)
+
+##Save model
+model.save_model('fashion_mnist.model')
+
+
+##Load model
+
+##Create new dataset
+X, y, X_test, y_test = create_mnist_data('fashion_mnist_images')
+
+##Shuffle training data
+keys = np.array(range(X.shape[0]))
+np.random.shuffle(keys)
+X = X[keys]
+y = y[keys]
+
+##Scale data between -1 and 1
+X = (X.astype(np.float32) - 127.5) / 127.5
+X_test = (X_test.astype(np.float32) - 127.5) / 127.5
+
+##Reshape to 1D vectors
+X = X.reshape(X.shape[0], -1)
+X_test = X_test.reshape(X_test.shape[0], -1)
+
+##Load model
+model2 = Model.load('fashion_mnist.model')
+
+##Evaluate the model
+model2.evaluate(X_test, y_test)
 
 
 

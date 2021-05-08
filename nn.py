@@ -1,4 +1,6 @@
 import numpy as np
+import pickle
+import copy
 import nnfs
 from nnfs.datasets import spiral_data
 
@@ -732,10 +734,13 @@ class Model():
         self.layers.append(obj)
     
     ##Set loss and optimizer objects
-    def set(self, *, loss, optimizer, accuracy):
-        self.loss_func = loss
-        self.optimizer = optimizer
-        self.accuracy = accuracy
+    def setup(self, *, loss, optimizer, accuracy):
+        if loss != None:
+            self.loss_func = loss
+        if optimizer != None:
+            self.optimizer = optimizer
+        if accuracy != None:
+            self.accuracy = accuracy
     
     ##Finalise the model
     def finalise(self):
@@ -962,7 +967,7 @@ class Model():
     def get_params(self) -> [(np.ndarray, np.ndarray),...]:
         parameters = []
         for layer in self.trainable:
-            parameters.append(layer.get_parameters())
+            parameters.append(layer.get_params())
         
         return parameters
 
@@ -972,5 +977,48 @@ class Model():
         ##Iterate over parameters and corresponding layers
         for params, layer in zip(parameters, self.trainable):
             layer.set_params(*params)
+    
+    ##Save parameters to a file
+    def save_params(self, path : str):
+
+        ##Open a file in binary write mode
+        with open(path, 'wb') as file:
+            pickle.dump(self.get_params(), file)
+    
+    ##Save model to a file
+    def save_model(self, path : str):
+
+        ##Make a deep copy of current instance
+        model = copy.deepcopy(self)
+
+        ##Reset accumulated avlues in loss and accuracy
+        model.loss_func.new_pass()
+        model.accuracy.new_pass()
+
+        ##Remove data from input layer
+        model.input_layer.__dict__.pop('output', None)
+        
+        ##Remove gradients from loss
+        model.loss_func.__dict__.pop('dInputs', None)
+
+        ##Remove inputs, outputs and dInputs for layers
+        for layer in model.layers:
+            for prop in ['inputs', 'output', 
+                'dInputs', 'dWeights', 'dBiases']:
+                layer.__dict__.pop(prop, None)
+        
+        ##Open a file in binary write mode
+        with open(path, 'wb') as file:
+            pickle.dump(model, file)
+    
+    ##Load a model from a file, before initialisation
+    @staticmethod
+    def load(path : str):
+
+        ##Open in binary-read mode
+        with open(path, 'rb') as file:
+            model = pickle.load(file)
+        
+        return model
         
     
