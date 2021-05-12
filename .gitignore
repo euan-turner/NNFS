@@ -1,5 +1,9 @@
 #Don't track datasets
 fashion_mnist_images/
+pred_images/
 
 #Don't track binary
 __pycache__/
+
+#Don't track saved models
+*.model

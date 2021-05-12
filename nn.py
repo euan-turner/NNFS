@@ -962,6 +962,41 @@ class Model():
                 f'acc: {test_accuracy:.3f}, ' +
                 f'loss: {test_loss:.3f}'
         )
+
+    ##Predictions on samples
+    def predict(self, X, *, batch_size=None):
+
+        ##Calculate number of steps
+        pred_steps = 1
+
+        if batch_size != None:
+            pred_steps = len(X) // batch_size
+
+            if pred_steps * batch_size < len(X):
+                pred_steps += 1
+        
+        ##Model predictions
+        output = []
+
+        ##Iterate over steps
+        for step in range(pred_steps):
+
+            if batch_size == None:
+                batch_X = X
+            
+            ##Otherwise slice batch
+            else:
+                batch_X = X[step*batch_size:(step+1)*batch_size]
+            
+            ##Perform forward pass
+            batch_output = self.forward(batch_X, training=False)
+
+            ##Append batch prediction to model predictions
+            output.append(batch_output)
+        
+        ##Stack and return results
+        return np.vstack(output)
+            
     
     ##Return parameters for all trainable layers
     def get_params(self) -> [(np.ndarray, np.ndarray),...]:
