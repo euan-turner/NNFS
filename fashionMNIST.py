@@ -23,7 +23,7 @@ def load_mnist_dataset(dataset, path):
             image = cv2.imread(
                 os.path.join(path, dataset, label, file), cv2.IMREAD_UNCHANGED
                 )
-            
+
             X.append(image)
             y.append(label)
     ##Convert to numpy arrays
@@ -66,8 +66,10 @@ model = Model()
 ##Add layers
 model.add(Dense_Layer(X.shape[1], 128))
 model.add(Act_ReLU())
+model.add(Dropout_Layer(0.1))
 model.add(Dense_Layer(128,128))
 model.add(Act_ReLU())
+model.add(Dropout_Layer(0.1))
 model.add(Dense_Layer(128,10))
 model.add(Act_Softmax())
 
@@ -82,7 +84,7 @@ model.setup(
 model.finalise()
 
 ##Train
-model.train(X, y, test_data = (X_test, y_test), 
+model.train(X, y, test_data = (X_test, y_test),
     epochs = 10, batch_size = 128, print_every = 100)
 
 ##Second evaluation on training data

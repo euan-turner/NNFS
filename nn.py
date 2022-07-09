@@ -66,7 +66,7 @@ class Dense_Layer():
             self.dBiases += dBL2
     
     ##Retrieve parameters
-    def get_params(self) -> (np.ndarray, np.ndarray):
+    def get_params(self):
         return self.weights, self.biases
     
     ##Set weights and biases
@@ -999,7 +999,7 @@ class Model():
             
     
     ##Return parameters for all trainable layers
-    def get_params(self) -> [(np.ndarray, np.ndarray),...]:
+    def get_params(self):
         parameters = []
         for layer in self.trainable:
             parameters.append(layer.get_params())
@@ -1007,7 +1007,7 @@ class Model():
         return parameters
 
     ##Set new parameters for model
-    def set_params(self, parameters : [(np.ndarray,np.ndarray),...]):
+    def set_params(self, parameters):
 
         ##Iterate over parameters and corresponding layers
         for params, layer in zip(parameters, self.trainable):
